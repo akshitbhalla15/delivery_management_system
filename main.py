@@ -2,23 +2,28 @@ from src.system import DeliverySystem
 from src.models import Driver, InventoryManager, Package
 from src.utils import hash_password
 
+# Sets up the system with some default data for testing
 def initialize_system():
     sys = DeliverySystem()
     
+    # Create a default manager
     mgr_pass = hash_password("admin123")
     mgr = InventoryManager("M001", "Akshit", mgr_pass)
     sys.add_manager(mgr)
     
+    # Create a default driver
     drv_pass = hash_password("driver123")
     drv = Driver("D001", "Riley", 100.0, drv_pass)
     sys.add_driver(drv)
     
+    # Add some sample packages
     sys.add_package(Package("PKG001", "10, 10", 5.0))
     sys.add_package(Package("PKG002", "20, 20", 3.0))
     sys.add_package(Package("PKG003", "5, 5", 2.0))
     
     return sys
 
+# The menu seen by drivers
 def driver_menu(system):
     while True:
         print("\n--- Driver Menu ---")
@@ -28,6 +33,7 @@ def driver_menu(system):
         choice = input("Select: ")
         
         if choice == "1":
+            # Show the route assigned to the driver
             if system.current_user.current_route_id:
                 route = system.routes.get(system.current_user.current_route_id)
                 if route:
@@ -40,6 +46,7 @@ def driver_menu(system):
                 print("No active route assigned.")
                 
         elif choice == "2":
+            # Allow driver to mark a package as delivered
             pkg_id = input("Enter Package ID: ")
             status = input("Enter New Status (Delivered/Returned): ")
             if system.update_package_status(pkg_id, status):
@@ -51,6 +58,7 @@ def driver_menu(system):
             system.logout()
             break
 
+# The menu seen by managers
 def manager_menu(system):
     while True:
         print("\n--- Manager Menu ---")
@@ -65,6 +73,7 @@ def manager_menu(system):
             print(system.get_analytics_report())
             
         elif choice == "2":
+            # Manually assign a driver to a route
             r_id = input("Route ID: ")
             d_id = input("Driver ID: ")
             if r_id in system.routes and d_id in system.drivers:
@@ -75,6 +84,7 @@ def manager_menu(system):
                 print("Invalid ID.")
 
         elif choice == "3":
+            # Add a new package to the system
             try:
                 p_id = input("Package ID (e.g., PKG004): ")
                 loc = input("Destination Coordinates (x, y): ")
@@ -86,6 +96,7 @@ def manager_menu(system):
             except ValueError:
                 print("Invalid input. Weight must be a number.")
         elif choice == "4":
+            # Trigger the auto-routing algorithm
             try:
                 k = int(input("Enter number of routes (k): "))
                 routes = system.auto_create_routes(k)
@@ -101,6 +112,7 @@ def main():
     system = initialize_system()
     print("Welcome to Convergence Engineering Solutions DMS")
     
+    # Main application loop
     while True:
         if not system.current_user:
             print("\n--- Login ---")

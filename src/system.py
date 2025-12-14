@@ -6,6 +6,7 @@ import os
 
 class DeliverySystem:
     def __init__(self):
+        # Initialize dictionaries to store our data
         self.packages = {}
         self.routes = {}
         self.drivers = {}
@@ -13,18 +14,21 @@ class DeliverySystem:
         self.current_user = None
         self.user_type = None
         self.data_file = 'data/packages.csv'
-        self.load_packages()
+        self.load_packages() # Load existing data on startup
 
+    # Loads packages from the CSV file if it exists
     def load_packages(self):
         if os.path.exists(self.data_file):
             with open(self.data_file, 'r', newline='') as f:
                 reader = csv.reader(f)
                 for row in reader:
                     if len(row) >= 3:
+                        # Recreate package objects from the CSV data
                         pkg = Package(row[0], row[1], float(row[2]))
                         if len(row) > 3: pkg.status = row[3]
                         self.packages[pkg.package_id] = pkg
 
+    # Saves all current packages back to the CSV file
     def save_packages(self):
         os.makedirs(os.path.dirname(self.data_file), exist_ok=True)
         with open(self.data_file, 'w', newline='') as f:
@@ -32,15 +36,17 @@ class DeliverySystem:
             for pkg in self.packages.values():
                 writer.writerow([pkg.package_id, pkg.label_address, pkg.weight, pkg.status])
 
+    # Adds a new package to the system
     def add_package(self, package):
         if validate_package_id(package.package_id):
             if package.package_id in self.packages:
-                return False
+                return False # Don't add if ID already exists
             self.packages[package.package_id] = package
-            self.save_packages()
+            self.save_packages() # Save immediately
             return True
         return False
 
+    # Updates the status of a package and saves the change
     def update_package_status(self, package_id, new_status):
         if package_id in self.packages:
             self.packages[package_id].status = new_status
@@ -54,6 +60,7 @@ class DeliverySystem:
     def add_manager(self, manager):
         self.managers[manager.manager_id] = manager
 
+    # Handles user login for both drivers and managers
     def login(self, user_id, password):
         if user_id in self.drivers:
             if verify_password(self.drivers[user_id].password_hash, password):
@@ -67,10 +74,12 @@ class DeliverySystem:
                 return True
         return False
 
+    # Logs out the current user
     def logout(self):
         self.current_user = None
         self.user_type = None
 
+    # Creates a new route and assigns packages to it
     def create_route(self, route_id, package_ids):
         route = Route(route_id)
         for pid in package_ids:
@@ -82,6 +91,7 @@ class DeliverySystem:
         self.routes[route_id] = route
         return route
 
+    # Optimizes the route using a Nearest Neighbor algorithm
     def optimize_route(self, route_id):
         if route_id not in self.routes:
             return False
@@ -92,8 +102,9 @@ class DeliverySystem:
             return True
             
         optimized_stops = []
-        current_pos = (0, 0)
+        current_pos = (0, 0) # Start at the depot (0,0)
         
+        # Parse all stops into coordinates
         pending = []
         for stop in stops:
             try:
@@ -107,6 +118,7 @@ class DeliverySystem:
             except:
                 pending.append(((0, 0), stop))
 
+        # "Greedily" find the nearest unvisited stop
         while pending:
             nearest = None
             min_dist = float('inf')
@@ -129,12 +141,14 @@ class DeliverySystem:
         route.optimized = True
         return True
 
+    # Automatically creates routes using K-Means clustering
     def auto_create_routes(self, k):
         max_route_weight = 100.0
         unassigned = [p for p in self.packages.values() if p.assigned_route_id is None]
         if len(unassigned) < k: k = len(unassigned)
         if k < 1: return []
 
+        # Initialize centroids with the first k packages
         centroids = []
         for i in range(k):
             try:
@@ -143,10 +157,12 @@ class DeliverySystem:
             except:
                 centroids.append((0.0, 0.0))
 
+        # Run K-Means for a fixed number of iterations (10 is sufficient here)
         for _ in range(10):
             clusters = [[] for _ in range(k)]
             cluster_weights = [0.0] * k
             
+            # Sort by weight to handle heavier packages first
             unassigned.sort(key=lambda p: p.weight, reverse=True)
             
             for p in unassigned:
@@ -156,24 +172,28 @@ class DeliverySystem:
                 except:
                     px, py = 0.0, 0.0
                 
+                # Find valid clusters (where weight limit isn't exceeded)
                 valid_clusters = []
                 for i, (cx, cy) in enumerate(centroids):
                     if cluster_weights[i] + p.weight <= max_route_weight:
                         dist = math.sqrt((px-cx)**2 + (py-cy)**2)
                         valid_clusters.append((dist, i))
                 
+                # Assign to the closest valid cluster
                 if valid_clusters:
                     valid_clusters.sort(key=lambda x: x[0])
                     best_i = valid_clusters[0][1]
                     clusters[best_i].append(p)
                     cluster_weights[best_i] += p.weight
             
+            # Recalculate centroids
             for i in range(k):
                 if clusters[i]:
                     sx = sum(float(p.label_address.split(',')[0]) for p in clusters[i])
                     sy = sum(float(p.label_address.split(',')[1]) for p in clusters[i])
                     centroids[i] = (sx/len(clusters[i]), sy/len(clusters[i]))
 
+        # Create actual route objects from the clusters
         new_routes = []
         for i, cluster in enumerate(clusters):
             if cluster:
@@ -183,6 +203,7 @@ class DeliverySystem:
                 new_routes.append(rid)
         return new_routes
 
+    # Generates a simple text report of the system status
     def get_analytics_report(self):
         total_packages = len(self.packages)
         delivered = sum(1 for p in self.packages.values() if p.status == "Delivered")
